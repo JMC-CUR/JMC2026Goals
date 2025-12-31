@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voornemens 2026</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+body { font-family: system-ui, sans-serif; background: #fafafa; padding: 24px; color: #333; margin:0;}
+.card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.numbers { font-size: 18px; margin-bottom: 8px; }
+.barBackground { height: 12px; background: #e5e5e5; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+.barFill { height: 100%; background: #7cb9a8; transition: width 0.4s ease; }
+.button { padding: 8px 12px; border-radius: 8px; border: none; background: #333; color: white; cursor: pointer; margin-top: 8px; }
+.input { display: block; width: 100%; margin-bottom: 8px; padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+.status { font-size: 16px; margin-bottom: 4px; }
+.note { font-size: 14px; color: #666; }
+.toggleButton { background: #555; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<h1>Voornemens 2026</h1>
+<div id="controls"></div>
+<div id="app"></div>
+<script>
+// PWA functionaliteit
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
+
+let goals = [];
+const STORAGE_KEY = 'voornemens-2026';
+let showArchived = false;
+let visualsOn = true;
+
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(goals)); }
+function load(){ const stored = localStorage.getItem(STORAGE_KEY); goals = stored ? JSON.parse(stored) : [
+  { id:1,title:'Wandelen',type:'counter',target:104,entries:[],active:true},
+  { id:2,title:'Vakantie naar Peru',type:'status',status:'Gepland',notes:'',active:true}
+];}
+
+function getEmoji(goal){if(!visualsOn)return'';if(goal.type==='counter'){let pct=goal.entries.length/goal.target;if(pct===0)return'⚪';if(pct<0.5)return'🟡';if(pct<1)return'🟢';return'🏆';}else{switch(goal.status.toLowerCase()){case'idee':return'💡';case'gepland':return'📅';case'voltooid':return'✅';default:return'📝';}}}
+
+function renderControls(){
+  const controls=document.getElementById('controls');controls.innerHTML='';
+  const toggleVisuals=document.createElement('button');toggleVisuals.className='button toggleButton';
+  toggleVisuals.textContent=visualsOn?'Visuele upgrade uitzetten':'Visuele upgrade aanzetten';
+  toggleVisuals.onclick=()=>{visualsOn=!visualsOn;render();renderControls();};controls.appendChild(toggleVisuals);
+  if(goals.filter(g=>!g.active).length>0){const toggleArchived=document.createElement('button');toggleArchived.className='button toggleButton';
+    toggleArchived.textContent=showArchived?'Verberg gearchiveerde doelen':'Toon gearchiveerde doelen';
+    toggleArchived.onclick=()=>{showArchived=!showArchived;render();};controls.appendChild(toggleArchived);}
+}
+
+function addGoal(){const title=prompt('Titel van het doel');if(!title)return;const type=prompt('Type: counter/status','counter');const id=Math.max(...goals.map(g=>g.id),0)+1;if(type==='counter'){const target=parseInt(prompt('Doel aantal'));if(isNaN(target))return;goals.push({id,title,type,target,entries:[],active:true});}else{goals.push({id,title,type,status:'Idee',notes:'',active:true});}save();render();renderControls();}
+
+function updateGoal(goal){const newTitle=prompt('Nieuwe titel',goal.title);if(!newTitle)return;goal.title=newTitle;if(goal.type==='counter'){const newTarget=parseInt(prompt('Nieuw doel aantal',goal.target));if(!isNaN(newTarget))goal.target=newTarget;}else{const newStatus=prompt('Nieuwe status',goal.status);if(newStatus)goal.status=newStatus;const newNotes=prompt('Notities',goal.notes);if(newNotes!==null)goal.notes=newNotes;}save();render();}
+
+function archiveGoal(goal){if(confirm('Weet je zeker dat je dit doel wilt archiveren?')){goal.active=false;save();render();}}
+function restoreGoal(goal){goal.active=true;save();render();}
+function addEntry(goal){goal.entries.push(new Date().toISOString().slice(0,10));save();render();}
+
+function render(){const app=document.getElementById('app');app.innerHTML='';const displayed=showArchived?goals.filter(g=>!g.active):goals.filter(g=>g.active);displayed.forEach(goal=>{const card=document.createElement('div');card.className='card';const title=document.createElement('h2');title.textContent=getEmoji(goal)+' '+goal.title;card.appendChild(title);if(goal.type==='counter'){const numbers=document.createElement('div');numbers.className='numbers';numbers.textContent=goal.entries.length+'/'+goal.target;card.appendChild(numbers);const barBg=document.createElement('div');barBg.className='barBackground';const barFill=document.createElement('div');barFill.className='barFill';barFill.style.width=Math.min(goal.entries.length/goal.target*100,100)+'%';barBg.appendChild(barFill);card.appendChild(barBg);if(goal.active){const btn=document.createElement('button');btn.className='button';btn.textContent='+1';btn.onclick=()=>addEntry(goal);card.appendChild(btn);}}else{const status=document.createElement('div');status.className='status';status.textContent='Status: '+goal.status;card.appendChild(status);const note=document.createElement('div');note.className='note';note.textContent=goal.notes;card.appendChild(note);}if(goal.active){const btn=document.createElement('button');btn.className='button';btn.textContent='Aanpassen';btn.onclick=()=>updateGoal(goal);card.appendChild(btn);const archBtn=document.createElement('button');archBtn.className='button';archBtn.textContent='Archiveren';archBtn.style.marginLeft='8px';archBtn.onclick=()=>archiveGoal(goal);card.appendChild(archBtn);}else{const restoreBtn=document.createElement('button');restoreBtn.className='button';restoreBtn.textContent='Herstellen';restoreBtn.style.background='#7cb9a8';restoreBtn.onclick=()=>restoreGoal(goal);card.appendChild(restoreBtn);}app.appendChild(card);});const addBtn=document.createElement('button');addBtn.className='button';addBtn.textContent='Nieuw doel toevoegen';addBtn.onclick=addGoal;app.appendChild(addBtn);}
+
+load();render();renderControls();
+</script>
+</body>
+</html>
